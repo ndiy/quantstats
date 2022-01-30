@@ -1,12 +1,78 @@
 Change Log
 ===========
 
+0.0.48
+------
+- Fixed RF display bug
+
+0.0.47
+------
+- Fixed average DD display bug
+
+0.0.46
+------
+- Misc bug fixes and speedups
+
+0.0.45
+------
+- Fixed ``stats.rolling_sharpe()`` parameter mismatch
+
+0.0.44
+------
+- Match dates logic on ``utils.make_index()``
+
+0.0.43
+------
+- Fixed ``stats.rolling_sortino()`` calculations
+- Added ``match_dates`` flag to reports to make strategy and benchmark comparible by syncing their dates and frequency
+- Added ``prepare_returns`` flag to ``utils._prepare_benchmark()``
+- Misc code cleanup and speedups
+
+0.0.42
+------
+- Usability improvements
+
+0.0.41
+------
+- Typos fixed
+
+0.0.40
+------
+- Added rebalance option to ``utils.make_index()``
+- Added option to add ``log_scale=True/False` to ``plots.snapshot()``
+
+0.0.39
+------
+- Fixed ``plots.rolling_volatility()`` benchmark display (bug introduced in 0.0.37)
+
+0.0.38
+------
+- Added ``stats.smart_sharpe()`` and ``stats.smart_sortino()``
+
+0.0.37
+------
+- added ``stats.rolling_sharpe()``, ``stats.rolling_sortino()``, ``stats.and rolling_volatility()``
+- Added ``stats.distribution()``
+- Added Omega ratio
+- BREAKING CHANGE: Eenamed ``trading_year_days`` param to ``periods_per_year``
+- Misc code cleanup and speedups
+
+0.0.36
+------
+- Added ``as_pct`` params to ``reports.metrics()`` for when you need display data as DataFrame
+
+0.0.35
+------
+- Passing correct rolling windows in ``rolling_beta()``
+- Added Serenity Index
+- Passing ``trading_year_days`` to method ``metrics``
+- Fixed "day is out of range for month" error
+
 0.0.34
 ------
 - Fixed bug in ``stats.consecutive_wins()`` and ``stats.consecutive_losses()``
 - Fixed seaborn's depreated ``distplot`` warning
 - Improved annualization by passing ``trading_year_days``
-
 
 0.0.33
 ------

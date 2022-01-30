@@ -23,6 +23,7 @@ import pandas as _pd
 import numpy as _np
 import yfinance as _yf
 from . import stats as _stats
+import inspect
 
 
 def _mtd(df):
@@ -57,7 +58,7 @@ def _pandas_current_month(df):
 
 
 def multi_shift(df, shift=3):
-    """ get last N rows relative to another row in pandas """
+    """Get last N rows relative to another row in pandas"""
     if isinstance(df, _pd.Series):
         df = _pd.DataFrame(df)
 
@@ -68,12 +69,12 @@ def multi_shift(df, shift=3):
 
 
 def to_returns(prices, rf=0.):
-    """ Calculates the simple arithmetic returns of a price series """
+    """Calculates the simple arithmetic returns of a price series"""
     return _prepare_returns(prices, rf)
 
 
 def to_prices(returns, base=1e5):
-    """ Converts returns series to price data """
+    """Converts returns series to price data"""
     returns = returns.copy().fillna(0).replace(
         [_np.inf, -_np.inf], float('NaN'))
 
@@ -81,12 +82,12 @@ def to_prices(returns, base=1e5):
 
 
 def log_returns(returns, rf=0., nperiods=None):
-    """ shorthand for to_log_returns """
+    """Shorthand for to_log_returns"""
     return to_log_returns(returns, rf, nperiods)
 
 
 def to_log_returns(returns, rf=0., nperiods=None):
-    """ Converts returns series to log returns """
+    """Converts returns series to log returns"""
     returns = _prepare_returns(returns, rf, nperiods)
     try:
         return _np.log(returns+1).replace([_np.inf, -_np.inf], float('NaN'))
@@ -95,7 +96,7 @@ def to_log_returns(returns, rf=0., nperiods=None):
 
 
 def exponential_stdev(returns, window=30, is_halflife=False):
-    """ Returns series representing exponential volatility of returns """
+    """Returns series representing exponential volatility of returns"""
     returns = _prepare_returns(returns)
     halflife = window if is_halflife else None
     return returns.ewm(com=None, span=window,
@@ -114,7 +115,7 @@ def rebase(prices, base=100.):
 
 
 def group_returns(returns, groupby, compounded=False):
-    """ summarize returns
+    """Summarize returns
     group_returns(df, df.index.year)
     group_returns(df, [df.index.year, df.index.month])
     """
@@ -124,8 +125,7 @@ def group_returns(returns, groupby, compounded=False):
 
 
 def aggregate_returns(returns, period=None, compounded=True):
-    """ Aggregates returns based on date periods """
-
+    """Aggregates returns based on date periods"""
     if period is None or 'day' in period:
         return returns
     index = returns.index
@@ -187,7 +187,7 @@ def to_excess_returns(returns, rf, nperiods=None):
 
 
 def _prepare_prices(data, base=1.):
-    """ Converts return data into prices + cleanup """
+    """Converts return data into prices + cleanup"""
     data = data.copy()
     if isinstance(data, _pd.DataFrame):
         for col in data.columns:
@@ -207,9 +207,9 @@ def _prepare_prices(data, base=1.):
 
 
 def _prepare_returns(data, rf=0., nperiods=None):
-    """ Converts price data into returns + cleanup """
+    """Converts price data into returns + cleanup"""
     data = data.copy()
-
+    function = inspect.stack()[1][3]
     if isinstance(data, _pd.DataFrame):
         for col in data.columns:
             if data[col].dropna().min() >= 0 and data[col].dropna().max() > 1:
@@ -223,9 +223,15 @@ def _prepare_returns(data, rf=0., nperiods=None):
     if isinstance(data, (_pd.DataFrame, _pd.Series)):
         data = data.fillna(0).replace(
             [_np.inf, -_np.inf], float('NaN'))
+    unnecessary_function_calls = ['_prepare_benchmark',
+                                  'cagr',
+                                  'gain_to_pain_ratio',
+                                  'rolling_volatility',]
 
-    if rf > 0:
-        return to_excess_returns(data, rf, nperiods)
+
+    if function not in unnecessary_function_calls:
+        if rf > 0:
+            return to_excess_returns(data, rf, nperiods)
     return data
 
 
@@ -237,9 +243,10 @@ def download_returns(ticker, period="max"):
     return _yf.Ticker(ticker).history(**p)['Close'].pct_change()
 
 
-def _prepare_benchmark(benchmark=None, period="max", rf=0.):
+def _prepare_benchmark(benchmark=None, period="max", rf=0.,
+                       prepare_returns=True):
     """
-    fetch benchmark if ticker is provided, and pass through
+    Fetch benchmark if ticker is provided, and pass through
     _prepare_returns()
 
     period can be options or (expected) _pd.DatetimeIndex range
@@ -253,26 +260,35 @@ def _prepare_benchmark(benchmark=None, period="max", rf=0.):
     elif isinstance(benchmark, _pd.DataFrame):
         benchmark = benchmark[benchmark.columns[0]].copy()
 
-    if isinstance(period, _pd.DatetimeIndex):
+    if isinstance(period, _pd.DatetimeIndex) \
+        and set(period) != set(benchmark.index):
+
+        # Adjust Benchmark to Strategy frequency
+        benchmark_prices = to_prices(benchmark, base=1)
+        new_index = _pd.date_range(start=period[0], end=period[-1], freq='D')
+        benchmark = benchmark_prices.reindex(new_index, method='bfill') \
+            .reindex(period).pct_change().fillna(0)
         benchmark = benchmark[benchmark.index.isin(period)]
 
-    return _prepare_returns(benchmark.dropna(), rf=rf)
+    if prepare_returns:
+        return _prepare_returns(benchmark.dropna(), rf=rf)
+    return benchmark.dropna()
 
 
 def _round_to_closest(val, res, decimals=None):
-    """ round to closest resolution """
+    """Round to closest resolution"""
     if decimals is None and "." in str(res):
         decimals = len(str(res).split('.')[1])
     return round(round(val / res) * res, decimals)
 
 
 def _file_stream():
-    """ Returns a file stream """
+    """Returns a file stream"""
     return _io.BytesIO()
 
 
 def _in_notebook(matplotlib_inline=False):
-    """ Identify enviroment (notebook, terminal, etc) """
+    """Identify enviroment (notebook, terminal, etc)"""
     try:
         shell = get_ipython().__class__.__name__
         if shell == 'ZMQInteractiveShell':
@@ -291,7 +307,7 @@ def _in_notebook(matplotlib_inline=False):
 
 
 def _count_consecutive(data):
-    """ Counts consecutive data (like cumsum() with reset on zeroes) """
+    """Counts consecutive data (like cumsum() with reset on zeroes)"""
     def _count(data):
         return data * (data.groupby(
             (data != data.shift(1)).cumsum()).cumcount() + 1)
@@ -304,32 +320,83 @@ def _count_consecutive(data):
 
 
 def _score_str(val):
-    """ Returns + sign for positive values (used in plots) """
+    """Returns + sign for positive values (used in plots)"""
     return ("" if "-" in val else "+") + str(val)
 
 
-def make_index(ticker_weights, rebalance=None, period="max"):
-    """ Makes an index out of the given tickers and weights. """
+def make_index(ticker_weights, rebalance="1M", period="max", returns=None, match_dates=False):
+    """
+    Makes an index out of the given tickers and weights.
+    Optionally you can pass a dataframe with the returns.
+    If returns is not given it try to download them with yfinance
+
+    Args:
+        * ticker_weights (Dict): A python dict with tickers as keys
+            and weights as values
+        * rebalance: Pandas resample interval or None for never
+        * period: time period of the returns to be downloaded
+        * returns (Series, DataFrame): Optional. Returns If provided,
+            it will fist check if returns for the given ticker are in
+            this dataframe, if not it will try to download them with
+            yfinance
+    Returns:
+        * index_returns (Series, DataFrame): Returns for the index
+    """
     # Declare a returns variable
     index = None
+    portfolio = {}
 
     # Iterate over weights
-    for ticker, ticker_weight in ticker_weights.items():
-        # Download the returns for this ticker, e.g. GOOG
-        ticker_returns = download_returns(ticker, period)
-        if index is None:
-            # Set the returns to this return series if it's empty
-            index = ticker_returns
+    for ticker in ticker_weights.keys():
+        if (returns is None) or (ticker not in returns.columns):
+            # Download the returns for this ticker, e.g. GOOG
+            ticker_returns = download_returns(ticker, period)
         else:
-            # Otherwise, add weighted return
-            index += ticker_returns * ticker_weight
-    # Return total index
-    return index
+            ticker_returns = returns[ticker]
+
+        portfolio[ticker] = ticker_returns
+
+    # index members time-series
+    index = _pd.DataFrame(portfolio).dropna()
+
+    if match_dates:
+        index=index[max(index.ne(0).idxmax()):]
+
+    # no rebalance?
+    if rebalance is None:
+        for ticker, weight in ticker_weights.items():
+            index[ticker] = weight * index[ticker]
+        return index.sum(axis=1)
+
+    last_day = index.index[-1]
+
+    # rebalance marker
+    rbdf = index.resample(rebalance).first()
+    rbdf['break'] = rbdf.index.strftime('%s')
+
+    # index returns with rebalance markers
+    index = _pd.concat([index, rbdf['break']], axis=1)
+
+    # mark first day day
+    index['first_day'] = _pd.isna(index['break']) & ~_pd.isna(index['break'].shift(1))
+    index.loc[index.index[0], 'first_day'] = True
+
+    # multiply first day of each rebalance period by the weight
+    for ticker, weight in ticker_weights.items():
+        index[ticker] = _np.where(
+            index['first_day'], weight * index[ticker], index[ticker])
+
+    # drop first marker
+    index.drop(columns=['first_day'], inplace=True)
+
+    # drop when all are NaN
+    index.dropna(how="all", inplace=True)
+    return index[index.index <= last_day].sum(axis=1)
 
 
 def make_portfolio(returns, start_balance=1e5,
                    mode="comp", round_to=None):
-    """ Calculates compounded value of portfolio """
+    """Calculates compounded value of portfolio"""
     returns = _prepare_returns(returns)
 
     if mode.lower() in ["cumsum", "sum"]:
@@ -359,7 +426,7 @@ def make_portfolio(returns, start_balance=1e5,
 
 
 def _flatten_dataframe(df, set_index=None):
-    """ Dirty method for flattening multi-index dataframe """
+    """Dirty method for flattening multi-index dataframe"""
     s_buf = _io.StringIO()
     df.to_csv(s_buf)
     s_buf.seek(0)

@@ -1,4 +1,4 @@
-.. image:: https://img.shields.io/badge/python-3.5+-blue.svg?style=flat
+.. image:: https://img.shields.io/badge/python-3.6+-blue.svg?style=flat
     :target: https://pypi.python.org/pypi/quantstats
     :alt: Python version
 
@@ -11,7 +11,7 @@
     :alt: PyPi status
 
 .. image:: https://img.shields.io/travis/ranaroussi/quantstats/main.svg?maxAge=1
-    :target: https://travis-ci.com/ranaroussi/quantstats
+    :target: https://travis-ci.com/github/ranaroussi/quantstats
     :alt: Travis-CI build status
 
 .. image:: https://img.shields.io/pypi/dm/quantstats.svg?maxAge=2592000&label=installs&color=%2327B1FF

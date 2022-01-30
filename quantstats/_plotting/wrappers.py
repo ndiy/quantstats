@@ -60,7 +60,8 @@ def to_plotly(fig):
 
 def snapshot(returns, grayscale=False, figsize=(10, 8),
              title='Portfolio Summary', fontname='Arial', lw=1.5,
-             mode="comp", subtitle=True, savefig=None, show=True):
+             mode="comp", subtitle=True, savefig=None, show=True,
+             log_scale=False):
 
     colors = _GRAYSCALE_COLORS if grayscale else _FLATUI_COLORS
 
@@ -97,6 +98,8 @@ def snapshot(returns, grayscale=False, figsize=(10, 8),
                  lw=1 if grayscale else lw, zorder=1)
     axes[0].axhline(0, color='silver', lw=1, zorder=0)
 
+    axes[0].set_yscale("symlog" if log_scale else "linear")
+
     dd = _stats.to_drawdown_series(returns) * 100
     ddmin = _utils._round_to_closest(abs(dd.min()), 5)
     ddmin_ticks = 5
@@ -110,16 +113,20 @@ def snapshot(returns, grayscale=False, figsize=(10, 8),
     axes[1].set_ylabel('Drawdown', fontname=fontname,
                        fontweight='bold', fontsize=12)
     axes[1].set_yticks(_np.arange(-ddmin, 0, step=ddmin_ticks))
-    axes[1].plot(dd, color=colors[2], lw=1 if grayscale else 1, zorder=1)
+    axes[1].plot(dd, color=colors[2], lw=1 if grayscale else lw, zorder=1)
     axes[1].axhline(0, color='silver', lw=1, zorder=0)
     if not grayscale:
         axes[1].fill_between(dd.index, 0, dd, color=colors[2], alpha=.1)
+
+    axes[1].set_yscale("symlog" if log_scale else "linear")
 
     axes[2].set_ylabel('Daily Return', fontname=fontname,
                        fontweight='bold', fontsize=12)
     axes[2].plot(returns * 100, color=colors[0], lw=0.5, zorder=1)
     axes[2].axhline(0, color='silver', lw=1, zorder=0)
     axes[2].axhline(0, color=colors[-1], linestyle='--', lw=1, zorder=2)
+
+    axes[2].set_yscale("symlog" if log_scale else "linear")
 
     retmax = _utils._round_to_closest(returns.max() * 100, 5)
     retmin = _utils._round_to_closest(returns.min() * 100, 5)
@@ -251,7 +258,8 @@ def returns(returns, benchmark=None,
             fontname='Arial', lw=1.5,
             match_volatility=False, compound=True, cumulative=True,
             resample=None, ylabel="Cumulative Returns",
-            subtitle=True, savefig=None, show=True):
+            subtitle=True, savefig=None, show=True,
+            prepare_returns=True):
 
     title = 'Cumulative Returns' if compound else 'Returns'
     if benchmark is not None:
@@ -262,7 +270,9 @@ def returns(returns, benchmark=None,
         if match_volatility:
             title += ' (Volatility Matched)'
 
-    returns = _utils._prepare_returns(returns)
+    if prepare_returns:
+        returns = _utils._prepare_returns(returns)
+
     benchmark = _utils._prepare_benchmark(benchmark, returns.index)
 
     fig = _core.plot_timeseries(returns, benchmark, title,
@@ -287,7 +297,8 @@ def log_returns(returns, benchmark=None,
                 fontname='Arial', lw=1.5,
                 match_volatility=False, compound=True, cumulative=True,
                 resample=None, ylabel="Cumulative Returns",
-                subtitle=True, savefig=None, show=True):
+                subtitle=True, savefig=None, show=True,
+                prepare_returns=True):
 
     title = 'Cumulative Returns' if compound else 'Returns'
     if benchmark is not None:
@@ -301,7 +312,9 @@ def log_returns(returns, benchmark=None,
         title += ' (Log Scaled'
     title += ')'
 
-    returns = _utils._prepare_returns(returns)
+    if prepare_returns:
+        returns = _utils._prepare_returns(returns)
+
     benchmark = _utils._prepare_benchmark(benchmark, returns.index)
 
     fig = _core.plot_timeseries(returns, benchmark, title,
@@ -325,9 +338,12 @@ def daily_returns(returns,
                   grayscale=False, figsize=(10, 4),
                   fontname='Arial', lw=0.5,
                   log_scale=False, ylabel="Returns",
-                  subtitle=True, savefig=None, show=True):
+                  subtitle=True, savefig=None, show=True,
+                  prepare_returns=True):
 
-    returns = _utils._prepare_returns(returns)
+    if prepare_returns:
+        returns = _utils._prepare_returns(returns)
+
     fig = _core.plot_timeseries(returns, None, 'Daily Returns',
                                 ylabel=ylabel,
                                 match_volatility=False,
@@ -350,20 +366,23 @@ def yearly_returns(returns, benchmark=None,
                    match_volatility=False,
                    log_scale=False, figsize=(10, 5), ylabel=True,
                    subtitle=True, compounded=True,
-                   savefig=None, show=True):
+                   savefig=None, show=True,
+                   prepare_returns=True):
 
     title = 'EOY Returns'
     if benchmark is not None:
         title += '  vs Benchmark'
         benchmark = _utils._prepare_benchmark(
             benchmark, returns.index).resample('A').apply(
-                _stats.compsum).resample('A').last()
+                _stats.comp).resample('A').last()
 
-    returns = _utils._prepare_returns(returns).resample('A')
+    if prepare_returns:
+        returns = _utils._prepare_returns(returns)
+
     if compounded:
-        returns = returns.apply(_stats.compsum)
+        returns = returns.resample('A').apply(_stats.comp)
     else:
-        returns = returns.apply(_df.cumsum)
+        returns = returns.resample('A').apply(_df.sum)
     returns = returns.resample('A').last()
 
     fig = _core.plot_returns_bars(returns, benchmark,
@@ -387,8 +406,11 @@ def yearly_returns(returns, benchmark=None,
 
 def distribution(returns, fontname='Arial', grayscale=False, ylabel=True,
                  figsize=(10, 6), subtitle=True, compounded=True,
-                 savefig=None, show=True):
-    returns = _utils._prepare_returns(returns)
+                 savefig=None, show=True,
+                 prepare_returns=True):
+    if prepare_returns:
+        returns = _utils._prepare_returns(returns)
+
     fig = _core.plot_distribution(returns,
                                   fontname=fontname,
                                   grayscale=grayscale,
@@ -403,9 +425,12 @@ def distribution(returns, fontname='Arial', grayscale=False, ylabel=True,
 
 def histogram(returns, resample='M', fontname='Arial',
               grayscale=False, figsize=(10, 5), ylabel=True,
-              subtitle=True, compounded=True, savefig=None, show=True):
+              subtitle=True, compounded=True, savefig=None, show=True,
+              prepare_returns=True):
 
-    returns = _utils._prepare_returns(returns)
+    if prepare_returns:
+        returns = _utils._prepare_returns(returns)
+
     if resample == 'W':
         title = "Weekly "
     elif resample == 'M':
@@ -453,8 +478,11 @@ def drawdown(returns, grayscale=False, figsize=(10, 5),
 def drawdowns_periods(returns, periods=5, lw=1.5, log_scale=False,
                       fontname='Arial', grayscale=False, figsize=(10, 5),
                       ylabel=True, subtitle=True, compounded=True,
-                      savefig=None, show=True):
-    returns = _utils._prepare_returns(returns)
+                      savefig=None, show=True,
+                      prepare_returns=True):
+    if prepare_returns:
+        returns = _utils._prepare_returns(returns)
+
     fig = _core.plot_longest_drawdowns(returns,
                                        periods=periods,
                                        lw=lw,
@@ -475,9 +503,12 @@ def rolling_beta(returns, benchmark,
                  window2=252, window2_label="12-Months",
                  lw=1.5, fontname='Arial', grayscale=False,
                  figsize=(10, 3), ylabel=True,
-                 subtitle=True, savefig=None, show=True):
+                 subtitle=True, savefig=None, show=True,
+                 prepare_returns=True):
 
-    returns = _utils._prepare_returns(returns)
+    if prepare_returns:
+        returns = _utils._prepare_returns(returns)
+
     benchmark = _utils._prepare_benchmark(benchmark, returns.index)
 
     fig = _core.plot_rolling_beta(returns, benchmark,
@@ -497,17 +528,17 @@ def rolling_beta(returns, benchmark,
 
 def rolling_volatility(returns, benchmark=None,
                        period=126, period_label="6-Months",
-                       trading_year_days=252,
+                       periods_per_year=252,
                        lw=1.5, fontname='Arial', grayscale=False,
                        figsize=(10, 3), ylabel="Volatility",
                        subtitle=True, savefig=None, show=True):
 
-    returns = _utils._prepare_returns(returns)
-    returns = returns.rolling(period).std() * _np.sqrt(trading_year_days)
+    returns = _stats.rolling_volatility(returns, period, periods_per_year)
 
     if benchmark is not None:
         benchmark = _utils._prepare_benchmark(benchmark, returns.index)
-        benchmark = benchmark.rolling(period).std() * _np.sqrt(trading_year_days)
+        benchmark = _stats.rolling_volatility(
+            benchmark, period, periods_per_year, prepare_returns=False)
 
     fig = _core.plot_rolling_stats(returns, benchmark,
                                    hline=returns.mean(),
@@ -526,22 +557,19 @@ def rolling_volatility(returns, benchmark=None,
 
 def rolling_sharpe(returns, benchmark=None, rf=0.,
                    period=126, period_label="6-Months",
-                   trading_year_days=252,
+                   periods_per_year=252,
                    lw=1.25, fontname='Arial', grayscale=False,
                    figsize=(10, 3), ylabel="Sharpe",
                    subtitle=True, savefig=None, show=True):
 
-    returns = _utils._prepare_returns(returns, rf)
-    returns = returns.rolling(period).mean() / returns.rolling(period).std()
-    returns = returns * _np.sqrt(
-        1 if trading_year_days is None else trading_year_days)
+    returns = _stats.rolling_sharpe(
+        returns, rf, period, True, periods_per_year, )
 
     if benchmark is not None:
         benchmark = _utils._prepare_benchmark(benchmark, returns.index, rf)
-        benchmark = benchmark.rolling(
-            period).mean() / benchmark.rolling(period).std()
-        benchmark = benchmark * _np.sqrt(
-            1 if trading_year_days is None else trading_year_days)
+        benchmark = _stats.rolling_sharpe(
+            benchmark, rf, period, True, periods_per_year,
+            prepare_returns=False)
 
     fig = _core.plot_rolling_stats(returns, benchmark,
                                    hline=returns.mean(),
@@ -560,23 +588,19 @@ def rolling_sharpe(returns, benchmark=None, rf=0.,
 
 def rolling_sortino(returns, benchmark=None, rf=0.,
                     period=126, period_label="6-Months",
-                    trading_year_days=252,
+                    periods_per_year=252,
                     lw=1.25, fontname='Arial', grayscale=False,
                     figsize=(10, 3), ylabel="Sortino",
                     subtitle=True, savefig=None, show=True):
 
-    returns = _utils._prepare_returns(returns, rf)
-    returns = returns.rolling(period).mean() / \
-        returns[returns < 0].rolling(period).std()
-    returns = returns * _np.sqrt(
-        1 if trading_year_days is None else trading_year_days)
+    returns = _stats.rolling_sortino(
+        returns, rf, period, True, periods_per_year)
 
     if benchmark is not None:
         benchmark = _utils._prepare_benchmark(benchmark, returns.index, rf)
-        benchmark = benchmark.rolling(period).mean() / benchmark[
-            benchmark < 0].rolling(period).std()
-        benchmark = benchmark * _np.sqrt(
-            1 if trading_year_days is None else trading_year_days)
+        benchmark = _stats.rolling_sortino(
+            benchmark, rf, period, True, periods_per_year,
+            prepare_returns=False)
 
     fig = _core.plot_rolling_stats(returns, benchmark,
                                    hline=returns.mean(),
